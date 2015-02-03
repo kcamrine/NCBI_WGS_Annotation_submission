@@ -1,0 +1,214 @@
+% Created 2014-09-08 Mon 16:00
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{wrapfig}
+\usepackage{soul}
+\usepackage{amssymb}
+\usepackage{hyperref}
+
+
+\title{Starter cookbook to processing genome w/ annotation pacakges for NCBI}
+\author{Katherine Amrine}
+\date{08 September 2014}
+
+\begin{document}
+
+\maketitle
+
+
+ Alrighty, here is my step-by-step and explanation for what I did to
+ do a WGS annotated genome submission for NCBI
+
+\section*{Step 1 is to notify NCBI you will be submitting data}
+\label{sec-1}
+
+
+\subsection*{create a bioproject submission per genome.}
+\label{sec-1.1}
+
+Specify that you will be submitting WGS, Annotated, SRA, etc. 
+
+\subsection*{Next create a biosample submission}
+\label{sec-1.2}
+
+   include details on your sample
+   
+\subsection*{Next start the WGS submission process}
+\label{sec-1.3}
+
+   here, I think they will ask you for a prefix, and in parenthesis, it will say
+   ``leave blank if you want NCBI to assign one for you''. I am paraphrasing because
+   I didn't realize this was important until I had already missed this step. 
+   It is important because that prefix will be what you have to start all your gene
+   names with. When you get down to the \texttt{newIDs.new.ncbi.txt} file I ask for in Step3,
+   this prefix is what needs to go in this file. 
+
+   also, they will ask you for the type of evidence that you have for the strings of 
+   N's within sequences. First off, N's do NOT occur as singletons, so they are not 
+   ambiguous bases. Ns refer to gaps of the size of the string of Ns if they ask you. 
+\subsubsection*{WHAT YOU WILL NEED}
+\label{sec-1.3.1}
+
+ -fasta file with scaffolds with concise names
+    this means that you really need to slim down names to as simple of
+    identifiers as possible. 
+ -gff version 2 file (with the scripts I provide here)
+    you don't need version 2, but I used it and wrote my scripts to
+    use this type of file. 
+
+\subsubsection*{WHAT I GIVE YOU}
+\label{sec-1.3.2}
+
+\paragraph*{a crappy script to do the first conversion of the gff file to the tbl}
+\label{sec-1.3.2.1}
+
+\paragraph*{file required for the tbl2asn script that will ultimately make your  asn submission file}
+\label{sec-1.3.2.2}
+
+\paragraph*{another crappy script to substitute in the names necessary}
+\label{sec-1.3.2.3}
+
+    
+\section*{Step 2 is to pre-process the peptide files}
+\label{sec-2}
+
+\subsection*{isolate the peptide sequences with internal stops (check number of seqs)}
+\label{sec-2.1}
+
+
+\begin{verbatim}
+fasgrep -s "-" <peptide_file.fas> > <file_with_internal_stop_sequences.fas>
+\end{verbatim}
+
+
+\subsection*{remove peptide sequences with internal stops (confirm you are missing seqs)}
+\label{sec-2.2}
+
+
+\begin{verbatim}
+fasgrep -vs "-" <peptide_file.fas> > <peptiled_file_minus_internal_stops.fas>
+\end{verbatim}
+
+
+\subsection*{remove annotated genes with internal stops from gff file (confirm correct unique ids are removed)}
+\label{sec-2.3}
+
+
+\begin{verbatim}
+egrep -f <(egrep ">" <file_with_internal_stop_sequences.fas> | cut -c 2- |cut -f1,2 -d"." | perl -pe "s/\n/\\\>\n/") <original_gff_file.gff> > <new_gff_minus_inernal_stop_peptides.gff>
+\end{verbatim}
+
+
+\section*{Step 3 is to fix the scaffolds files}
+\label{sec-3}
+
+\subsection*{remove trailing ends (no one cares where these are, just truncate them)}
+\label{sec-3.1}
+
+
+\begin{verbatim}
+fassub -s 'N{1,}$' '' <scaffolds_file_original.fas> > <scaffolds_no_trailing.fas>
+\end{verbatim}
+
+
+\subsection*{find sequences with leading n's and their numbers, put into file}
+\label{sec-3.2}
+
+
+\begin{verbatim}
+fasgrep -s "^N" <scaffolds_no_trailing.fas> | perl -ne 'BEGIN{$start=0;}if(/^\>/){$finish=0;chomp;$seqname=$_;$start=1;$length=0;}if($start==1 && $finish==0){/(^N{1,})/;$length += length($1);if(/[ATCG]/){ print join"",$seqname,"\t",$length,"\n";$start=0;$finish=1;}}' | sort | uniq > leading_Ns.txt
+\end{verbatim}
+
+
+\subsection*{change coordinates for leading N sequences in gff file}
+\label{sec-3.3}
+
+for this script \emph{changecoords.pl}, you need the file \texttt{leading\_Ns.txt}
+but it takes the gff file and fixes all the coordinates
+
+\begin{verbatim}
+./change_coords.pl <new_gff_minus_internal_stop_peptides.gff> > <new_gff_with_no_errors.gff>
+\end{verbatim}
+
+
+and then remove the leading Ns from the sequences
+\subsection*{convert files to NCBI-ready with my messy table scripts}
+\label{sec-3.4}
+
+
+the first script takes the gff as is, and puts the information into table formt
+
+\begin{verbatim}
+~/bin/katie_gff2tbl.pl <new_gff_with_no_errors.gff> > <genome_annot_from_gff.tbl-sub>
+\end{verbatim}
+
+
+the second script takes a file called \texttt{gene\_name\_conversions.txt} and substitutes the correct gene names into the tbl file from the previous command.
+check \emph{c-strain-annotation.sub.txt} for an example of the format of this file, which is tab-delimited and expects a header line.
+the subsequent command just changes gff identifiers to NCBI identifiers
+
+\begin{verbatim}
+~/bin/katie_gff2tble2.pl <genome_annot_from_gff.tbl-sub> > <genome_annot_from_1gff.tbl>
+perl -pe 's/gene_id/protein_id/' <genome_annot_from_1gff.tbl> > <genome_annot_from_2gff.tbl>
+\end{verbatim}
+
+
+\subsection*{change the gene names to ones that are permissible by NCBI.}
+\label{sec-3.5}
+
+file to annotate the specific identifier assigned by NCBI. \texttt{newIDs.new.ncbi.txt}
+look at \emph{newIDs.new.txt} for an example on how to do it. remember, the prefix that 
+you entered in the WGS submission will go at the beginning of your new gene IDs. In the 
+example file, I have the number followed by a dash. USE AN UNDERSCORE, NOT A DASH.
+
+\begin{verbatim}
+~/bin/change_IDs.pl <genome_annot_from_2gff.tbl> > <final.tbl>
+\end{verbatim}
+
+
+
+\subsection*{miscellaneous help}
+\label{sec-3.6}
+
+these were to clean up things listed as problematic in the discrepancy report
+this example shows deleting weird names that muck up the translator like ``AF443189\_{}2'' and ``homolog'' and ``af376000\_{}1''
+in the .tbl annotations
+
+
+\begin{verbatim}
+perl -pe 's/\"//g;s/AF443189_2//g;s/, putative//g;s/, //g;s/homolog$/-like protein/g;s/CPUR_[0-9]+//g;s/af376000_1//g;s/pf11_0240-like//g;' c-strain.contigs.rename.tbl > c-strain.contigs.tbl
+\end{verbatim}
+
+
+
+\section*{Step 4 is to submit}
+\label{sec-4}
+
+\subsection*{run most recent version of tbl2asn.}
+\label{sec-4.1}
+
+Need to go download mac.tbl2asn or whatever it is called
+Enec.sbt came from the NCBI website creating an sbt file for me at
+\href{http://www.ncbi.nlm.nih.gov/WebSub/template.cgi}{http://www.ncbi.nlm.nih.gov/WebSub/template.cgi}
+\subsubsection*{change things that are different, like paired-ends, organism name, isolate name, check your options, etc.}
+\label{sec-4.1.1}
+
+
+\begin{verbatim}
+./mac.tbl2asn -i <> -t Enec.sbt -M n -a r10k -j"[organism=Erysiphe necator][isolate=c]" -V v -l paired-ends
+\end{verbatim}
+
+
+
+\subsection*{check errorsummary.val for fatal errors}
+\label{sec-4.2}
+
+\subsection*{submit .sqn and .fas file}
+\label{sec-4.3}
+
+
+\end{document}
