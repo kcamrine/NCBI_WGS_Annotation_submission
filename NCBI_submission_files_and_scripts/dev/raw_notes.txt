@@ -1,0 +1,71 @@
+#isolate the peptide sequences with internal stops (49 total)
+fasgrep -s "-" c-strain-trinity-maker-augustus.peptides.v0.2.fasta > c-strain-trinity-maker-augustus.peptides.internalstop.v0.2.fasta
+#remove peptide sequences with internal stops (confirmed -49)
+fasgrep -vs "-" c-strain-trinity-maker-augustus.peptides.v0.2.fasta > c-strain-trinity-maker-augustus.peptides.clean.v0.2.fasta
+#remove annotated genes with internal stops from gff file (49 unique id's removed, 220 total lines) 
+egrep -f <(egrep ">" c-strain-trinity-maker-augustus.peptides.internalstop.v0.2.fasta | cut -c 2- |cut -f1,2 -d"." | perl -pe "s/\n/\\\>\n/") ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain-trinity-maker-augustus.v0.2.gff > ../../../PM\ genomics\ shared/NCBI\ submission/c-strain-trinity-maker-augustus.clean.v0.2.gff
+## change coordinates for leading N sequences in gff file
+~/bin/change_coords.pl ~/Dropbox/PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain-trinity-maker-augustus.clean.v0.2.gff > ~/Dropbox/PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain-trinity-maker-augustus.clean.coordchange.v0.2.gff
+## change fasta scaffold file to remove trailing and leading N stretches less than 8
+perl -pe 'if(/[ATCG](N{1,8}\n)/ || /^N{1,8}[ATCG]/){s/N{1,}\n/\n/;s/^N{1,}//;}' enecator-c-strain-2runs-clc-b244-w64.700.30x.v1.scaffolds.fasta > c-strain.contigs.fas
+#convert gff to NCBI tbl format (2 steps)
+~/bin/katie_gff2tbl.pl ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain-trinity-maker-augustus.clean.coordchange.v0.2.gff > ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain-trinity-maker-augustus.clean.v0.2.gff.tbl-sub
+~/bin/katie_gff2tble2.pl ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain-trinity-maker-augustus.clean.v0.2.gff.tbl-sub > ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.temp.tbl
+#change gene_id to transcript_id
+perl -pe 's/gene_id/protein_id/' ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.temp.tbl > ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.tbl
+rm ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.temp.tbl
+
+##fixed annotations for 
+##putative autophagic death protein aut7 idi- [lcl|enecator-c-strain-clc-b244-w64_contig_448.g1666
+##putative endo-beta- [lcl|enecator-c-strain-clc-b244-w64_contig_496.g1798
+##putative endo alpha- [lcl|enecator-c-strain-clc-b244-w64_contig_2041.g5762
+##putative udp-glucose 4- [lcl|enecator-c-strain-clc-b244-w64_contig_2041.g5761
+##putative endo-beta- [lcl|enecator-c-strain-clc-b244-w64_contig_5163.g11005
+
+## Edited sequences and gff annotation loci (change_coord.pl) for 
+## contig_29	    (7 leading Ns) -- subtracted 7 from each coord
+## contig_87	    (2 trailing Ns)
+## contig_786	    (4 trailing Ns)
+## contig_2681	    (2 leading Ns) -- subtracted 2 from each coord
+## contig_2807	    (2 trailing Ns)
+## contig_2875	    (8 leading Ns) -- subtracted 8 from each coord
+## contig_2903	    (2 leading Ns) -- subtracted 2 from each coord
+## contig_3387	    (2 trailing Ns)
+## contig_4121	    (4 leading Ns) -- subtracted 4 from each coord
+## contig_5341	    (2 leading Ns) -- subtracted 2 from each coord
+## contig_7814	    (2 trailing Ns)
+## contig_13366	    (2 leading Ns) -- subtracted 2 from each coord
+
+#find sequences with leading n's and their numbers
+fasgrep -s "^N" enecator-c-strain-2runs-clc-b244-w64.700.30x.v1.scaffolds.fasta | perl -ne 'BEGIN{$start=0;}if(/^\>/){$finish=0;chomp;$seqname = $_;$start = 1;$length=0;}if($start==1 && $finish==0){/(^N{1,})/;$length += length($1);if(/[ATCG]/){ print join "",$seqname,"\t",$length,"\n";$start=0;$finish=1;}}' | sort | uniq > leading_Ns.txt
+
+
+#### edit the sequences based on NCBI specifications (done beginning of June 2014)#####
+first get the trim data into a file
+emacs adapters_to_remove.txt #copy/paste from email
+#make new names
+perl -pe 'if(/\>/){s/clc-b244-w64_contig/strain/g;}' c-strain.contigs.fas > c-strain.contigs.rename.fas
+perl -pe "s/clc-b244-w64_contig/scaffold/g" adaptors_to_remove.txt > adaptors_to_remove_newname.txt
+#remove sequence asked by NCBI
+less c-strain.contigs.rename.fas | fasgrep -v "enecator-c-strain-scaffold_140$" > c-strain.contigs.rename2.fas
+#wrote this code to take the NCBI changes and re-write the gff file and the sequence file 
+./remove_NCBI_adaptors.pl > c-strain.contigs.rename.trim.fas
+
+#convert with my messy table scripts
+~/bin/katie_gff2tbl.pl new_gff_v2.gff > c-strain.contigs.rename.tbl-sub
+~/bin/katie_gff2tble2.pl c-strain.contigs.rename.tbl-sub > c-strain.contigs.rename.temp.tbl
+perl -pe 's/gene_id/protein_id/' ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.rename.temp.tbl > ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.rename.tbl
+ perl -pe 's/gene_id/protein_id/' ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.temp.tbl > ../../../PM\ genomics\ shared/NCBI\ submission/c-strain_ANNOTATED/c-strain.contigs.tbl
+#change the gene names to ones that are permissible by NCBI.  Modify the change_IDs.pl 
+#file to annotate the specific identifier assigned by NCBI. 
+~/bin/change_IDs.pl c-strain.contigs.tbl > c-strain.contigs.rename.tbl
+
+#these were to clean up things listed as problematic in the discrepancy report
+perl -pe 's/\"//g;s/AF443189_2//g;s/, putative//g;s/, //g;s/homolog$/-like protein/g;s/CPUR_[0-9]+//g;s/af376000_1//g;s/pf11_0240-like//g;' c-strain.contigs.rename.tbl > c-strain.contigs.tbl
+#run most recent version of tbl2asn
+~/bin/mac.tbl2asn -i c-strain.contigs.fas -t Enec.sbt -M n -a r10k -j"[organism=Erysiphe necator][isolate=c]" -V v -l paired-ends
+
+#check errorsummary.val for fatal errors
+#submit .sqn and .fas file
+
+
