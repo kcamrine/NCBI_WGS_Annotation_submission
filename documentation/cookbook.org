@@ -31,7 +31,8 @@ if you don't want one automatically assigned. When you get down to the
 
  -gff version 2 file (with the scripts I provide here) devoid of sequences
     you don't need version 2, but I used it and wrote my scripts to
-    use this type of file. 
+    use this type of file. The GFF file gene names should match your 
+    gene names in your fasta file.
 
  -install of BIOPERL and [[https://github.com/tlawrence3/FAST][FASTools]]
 
@@ -42,39 +43,77 @@ if you don't want one automatically assigned. When you get down to the
     
 * Pre-process the peptide files
 ** isolate the peptide sequences with internal stops (check number of seqs)
+needs: peptide fasta file
+
+returns: fasta file with internal stop sequences
 #+BEGIN_SRC SHELL
 fasgrep -s "[^A-Z].+" <peptide_file.fas> > <file_with_internal_stop_sequences.fas>
 #+END_SRC
 ** remove peptide sequences with internal stops (confirm you are missing seqs)
+needs: peptide fasta file
+
+returns: fasta file without the internal stop sequences
 #+BEGIN_SRC SHELL
 fasgrep -vs "[^A-Z].+" <peptide_file.fas> > <peptiled_file_minus_internal_stops.fas>
 #+END_SRC
-** remove annotated genes with internal stops from gff file (confirm correct unique ids are removed) 
+** remove annotated genes with internal stops from gff file.
+needs: peptide fasta file without the internal stop sequences; gff file
+
+returns: gff file without genes with internal stops
+
+  the second command (cut -c 2-) will get everything but the ">" character, and the 
+  third command (cut -f1,2 -d".") is specific to the e-necator processing. Our gene
+  names consisted of the species, then gene name separated by periods. There was a third
+  field with ".t1" which specifies only the transcript in our gff files. We remove this
+  because it would only pick up the mRNA line in the gff file. You need to see what is 
+  unique about your gene names and modify this. The fourth command (perl code) adds a 
+  regex end-of-word wildcard. This only works if your gene names in your fasta peptide file
+  match the gene names in your gff file. You should check this. 
+ (confirm correct unique ids are removed after this step)
+ 
 #+BEGIN_SRC SHELL 
-egrep -f <(egrep ">" <file_with_internal_stop_sequences.fas> | cut -c 2- |cut -f1,2 -d"." | perl -pe "s/\n/\\\>\n/") <original_gff_file.gff> > <new_gff_minus_inernal_stop_peptides.gff>
+egrep -f <(egrep ">" <peptide_file_minus_internal_stops.fas> | cut -c 2- |cut -f1,2 -d"." | perl -pe "s/\n/\\\>\n/") <original_gff_file.gff> > <new_gff_minus_inernal_stop_peptides.gff>
 #+END_SRC
 ** make sure there are no sequences in your gff file. It should only be coordinates for the following scripts.
 * Fix the scaffolds files
-** remove trailing ends (no one cares where these are, just truncate them)
+** remove trailing Ns (no one cares where these are, just truncate them)
+needs: original scaffold file
+
+returns: scaffold file without trailing ends
 #+BEGIN_SRC shell
 fassub -s 'N{1,}$' '' <scaffolds_file_original.fas> > <scaffolds_no_trailing.fas>
 #+END_SRC
 ** find sequences with leading n's and their numbers, put into file
+needs: scaffold file from previous step
+
+returns: text file with list of sequences that have trailing N's, and their number
 #+BEGIN_SRC shell
 fasgrep -s "^N" <scaffolds_no_trailing.fas> | perl -ne 'BEGIN{$start=0;}if(/^\>/){$finish=0;chomp;$seqname=$_;$start=1;$length=0;}if($start==1 && $finish==0){/(^N{1,})/;$length += length($1);if(/[ATCG]/){ print join"",$seqname,"\t",$length,"\n";$start=0;$finish=1;}}' | sort | uniq > leading_Ns.txt
 #+END_SRC
 ** change coordinates for leading N sequences in gff file
+needs: file specifying leading N's
+
+returns: gff file adjusting coordinats for genes on scaffolds where leading Ns were removed
+
 for this script /changecoords.pl/, you need the file =leading_Ns.txt=
 but it takes the gff file and fixes all the coordinates
 #+BEGIN_SRC SHELL
 ./change_coords.pl <new_gff_minus_internal_stop_peptides.gff> > <new_gff_with_no_errors.gff>
 #+END_SRC
 ** and then remove the leading Ns from the sequences
+needs: scaffold file edited from aboce
+
+returns: scaffold file now with removed leading Ns 
+
 #+BEGIN_SRC SHELL
 fassub -s '^N{1,}' '' <scaffolds_no_trailing.fas> <scaffolds_no_trailing_leading.fas> 
 #+END_SRC
 
 ** convert files to NCBI-ready with my messy table scripts
+needs: processed gff file from previous steps, and a conversion file with the old gene names, and the new gene names that are NCBI-specific
+
+returns: NCBI tbl file with NCBI-specific identifiers for proteins
+
 
 the first script takes the gff as is, and puts the information into table formt
 #+BEGIN_SRC shell
@@ -88,10 +127,12 @@ the subsequent command just changes gff identifiers to NCBI identifiers
 perl -pe 's/gene_id/protein_id/' <genome_annot_from_1gff.tbl> > <genome_annot_from_2gff.tbl>
 #+END_SRC
 ** change the gene names to ones that are permissible by NCBI.  
-file to annotate the specific identifier assigned by NCBI. =newIDs.new.ncbi.txt=
+needs: .tbl file from previous step; file to annotate the specific identifier assigned by NCBI. =newIDs.new.ncbi.txt=
 look at /newIDs.new.txt/ for an example on how to do it. remember, the prefix that 
 you entered in the WGS submission will go at the beginning of your new gene IDs. In the 
 example file, I have the number followed by a dash. USE AN UNDERSCORE, NOT A DASH.
+
+returns: ncbi-formatted tbl file
 #+BEGIN_SRC shell
 ~/bin/change_IDs.pl <genome_annot_from_2gff.tbl> > <final.tbl>
 #+END_SRC
@@ -106,11 +147,15 @@ perl -pe 's/\"//g;s/AF443189_2//g;s/, putative//g;s/, //g;s/homolog$/-like prote
 #+END_SRC
 
 * Prepare files to submit
-** run most recent version of tbl2asn. 
-Need to go download mac.tbl2asn or whatever it is called
+** make a .sbt file online
 Enec.sbt came from the NCBI website creating an sbt file for me at
 [[http://www.ncbi.nlm.nih.gov/WebSub/template.cgi]]
-*** change things that are different, like paired-ends, organism name, isolate name, check your options, etc.
+
+** get tbl2asn script from NCBI
+Need to go download mac.tbl2asn or whatever it is called
+
+** run most recent version of tbl2asn. change things that are different, like paired-ends, organism name, isolate name, check your options, -a has to do with gap sizes, etc.
+this script looks for a .tbl file in your current directory
 #+BEGIN_SRC shell
 ./mac.tbl2asn -i <> -t Enec.sbt -M n -a r10k -j"[organism=Erysiphe necator][isolate=c]" -V v -l paired-ends
 #+END_SRC shell

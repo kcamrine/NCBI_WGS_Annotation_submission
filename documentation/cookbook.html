@@ -7,7 +7,7 @@ lang="en" xml:lang="en">
 <title>Starter cookbook to processing genome w/ annotation pacakges for NCBI</title>
 <meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
 <meta name="generator" content="Org-mode"/>
-<meta name="generated" content="2015-02-03 11:14:59 PST"/>
+<meta name="generated" content="2015-02-04 12:26:57 PST"/>
 <meta name="author" content="Katherine Amrine"/>
 <meta name="description" content=""/>
 <meta name="keywords" content=""/>
@@ -95,13 +95,13 @@ do a WGS annotated genome submission for NCBI
 <ul>
 <li><a href="#sec-2.1">2.1 isolate the peptide sequences with internal stops (check number of seqs) </a></li>
 <li><a href="#sec-2.2">2.2 remove peptide sequences with internal stops (confirm you are missing seqs) </a></li>
-<li><a href="#sec-2.3">2.3 remove annotated genes with internal stops from gff file (confirm correct unique ids are removed) </a></li>
+<li><a href="#sec-2.3">2.3 remove annotated genes with internal stops from gff file. </a></li>
 <li><a href="#sec-2.4">2.4 make sure there are no sequences in your gff file. It should only be coordinates for the following scripts. </a></li>
 </ul>
 </li>
 <li><a href="#sec-3">3 Fix the scaffolds files </a>
 <ul>
-<li><a href="#sec-3.1">3.1 remove trailing ends (no one cares where these are, just truncate them) </a></li>
+<li><a href="#sec-3.1">3.1 remove trailing Ns (no one cares where these are, just truncate them) </a></li>
 <li><a href="#sec-3.2">3.2 find sequences with leading n's and their numbers, put into file </a></li>
 <li><a href="#sec-3.3">3.3 change coordinates for leading N sequences in gff file </a></li>
 <li><a href="#sec-3.4">3.4 and then remove the leading Ns from the sequences </a></li>
@@ -112,12 +112,10 @@ do a WGS annotated genome submission for NCBI
 </li>
 <li><a href="#sec-4">4 Prepare files to submit </a>
 <ul>
-<li><a href="#sec-4.1">4.1 run most recent version of tbl2asn. </a>
-<ul>
-<li><a href="#sec-4.1.1">4.1.1 change things that are different, like paired-ends, organism name, isolate name, check your options, etc. </a></li>
-</ul>
-</li>
-<li><a href="#sec-4.2">4.2 check errorsummary.val for fatal errors </a></li>
+<li><a href="#sec-4.1">4.1 make a .sbt file online </a></li>
+<li><a href="#sec-4.2">4.2 get tbl2asn script from NCBI </a></li>
+<li><a href="#sec-4.3">4.3 run most recent version of tbl2asn. change things that are different, like paired-ends, organism name, isolate name, check your options, -a has to do with gap sizes, etc. </a></li>
+<li><a href="#sec-4.4">4.4 check errorsummary.val for fatal errors </a></li>
 </ul>
 </li>
 <li><a href="#sec-5">5 submit .sqn and .fas file </a></li>
@@ -184,7 +182,8 @@ identifiers as possible.
 <p>
 -gff version 2 file (with the scripts I provide here) devoid of sequences
 you don't need version 2, but I used it and wrote my scripts to
-use this type of file. 
+use this type of file. The GFF file gene names should match your 
+gene names in your fasta file.
 </p>
 <p>
 -install of BIOPERL and <a href="https://github.com/tlawrence3/FAST">FASTools</a>
@@ -223,7 +222,11 @@ use this type of file.
 <h3 id="sec-2.1"><span class="section-number-3">2.1</span> isolate the peptide sequences with internal stops (check number of seqs) </h3>
 <div class="outline-text-3" id="text-2.1">
 
-
+<p>needs: peptide fasta file
+</p>
+<p>
+returns: fasta file with internal stop sequences
+</p>
 
 
 <pre class="example">fasgrep -s "[^A-Z].+" &lt;peptide_file.fas&gt; &gt; &lt;file_with_internal_stop_sequences.fas&gt;
@@ -239,7 +242,11 @@ use this type of file.
 <h3 id="sec-2.2"><span class="section-number-3">2.2</span> remove peptide sequences with internal stops (confirm you are missing seqs) </h3>
 <div class="outline-text-3" id="text-2.2">
 
-
+<p>needs: peptide fasta file
+</p>
+<p>
+returns: fasta file without the internal stop sequences
+</p>
 
 
 <pre class="example">fasgrep -vs "[^A-Z].+" &lt;peptide_file.fas&gt; &gt; &lt;peptiled_file_minus_internal_stops.fas&gt;
@@ -252,13 +259,29 @@ use this type of file.
 </div>
 
 <div id="outline-container-2.3" class="outline-3">
-<h3 id="sec-2.3"><span class="section-number-3">2.3</span> remove annotated genes with internal stops from gff file (confirm correct unique ids are removed) </h3>
+<h3 id="sec-2.3"><span class="section-number-3">2.3</span> remove annotated genes with internal stops from gff file. </h3>
 <div class="outline-text-3" id="text-2.3">
 
+<p>needs: peptide fasta file without the internal stop sequences; gff file
+</p>
+<p>
+returns: gff file without genes with internal stops
+</p>
+<p>
+the second command (cut -c 2-) will get everything but the "&gt;" character, and the 
+third command (cut -f1,2 -d".") is specific to the e-necator processing. Our gene
+names consisted of the species, then gene name separated by periods. There was a third
+field with ".t1" which specifies only the transcript in our gff files. We remove this
+because it would only pick up the mRNA line in the gff file. You need to see what is 
+unique about your gene names and modify this. The fourth command (perl code) adds a 
+regex end-of-word wildcard. This only works if your gene names in your fasta peptide file
+match the gene names in your gff file. You should check this. 
+(confirm correct unique ids are removed after this step)
+</p>
 
 
 
-<pre class="example">egrep -f &lt;(egrep "&gt;" &lt;file_with_internal_stop_sequences.fas&gt; | cut -c 2- |cut -f1,2 -d"." | perl -pe "s/\n/\\\&gt;\n/") &lt;original_gff_file.gff&gt; &gt; &lt;new_gff_minus_inernal_stop_peptides.gff&gt;
+<pre class="example">egrep -f &lt;(egrep "&gt;" &lt;peptide_file_minus_internal_stops.fas&gt; | cut -c 2- |cut -f1,2 -d"." | perl -pe "s/\n/\\\&gt;\n/") &lt;original_gff_file.gff&gt; &gt; &lt;new_gff_minus_inernal_stop_peptides.gff&gt;
 </pre>
 
 
@@ -284,10 +307,14 @@ use this type of file.
 </div>
 
 <div id="outline-container-3.1" class="outline-3">
-<h3 id="sec-3.1"><span class="section-number-3">3.1</span> remove trailing ends (no one cares where these are, just truncate them) </h3>
+<h3 id="sec-3.1"><span class="section-number-3">3.1</span> remove trailing Ns (no one cares where these are, just truncate them) </h3>
 <div class="outline-text-3" id="text-3.1">
 
-
+<p>needs: original scaffold file
+</p>
+<p>
+returns: scaffold file without trailing ends
+</p>
 
 
 <pre class="example">fassub -s 'N{1,}$' '' &lt;scaffolds_file_original.fas&gt; &gt; &lt;scaffolds_no_trailing.fas&gt;
@@ -303,7 +330,11 @@ use this type of file.
 <h3 id="sec-3.2"><span class="section-number-3">3.2</span> find sequences with leading n's and their numbers, put into file </h3>
 <div class="outline-text-3" id="text-3.2">
 
-
+<p>needs: scaffold file from previous step
+</p>
+<p>
+returns: text file with list of sequences that have trailing N's, and their number
+</p>
 
 
 <pre class="example">fasgrep -s "^N" &lt;scaffolds_no_trailing.fas&gt; | perl -ne 'BEGIN{$start=0;}if(/^\&gt;/){$finish=0;chomp;$seqname=$_;$start=1;$length=0;}if($start==1 &amp;&amp; $finish==0){/(^N{1,})/;$length += length($1);if(/[ATCG]/){ print join"",$seqname,"\t",$length,"\n";$start=0;$finish=1;}}' | sort | uniq &gt; leading_Ns.txt
@@ -319,7 +350,13 @@ use this type of file.
 <h3 id="sec-3.3"><span class="section-number-3">3.3</span> change coordinates for leading N sequences in gff file </h3>
 <div class="outline-text-3" id="text-3.3">
 
-<p>for this script <i>changecoords.pl</i>, you need the file <code>leading_Ns.txt</code>
+<p>needs: file specifying leading N's
+</p>
+<p>
+returns: gff file adjusting coordinats for genes on scaffolds where leading Ns were removed
+</p>
+<p>
+for this script <i>changecoords.pl</i>, you need the file <code>leading_Ns.txt</code>
 but it takes the gff file and fixes all the coordinates
 </p>
 
@@ -337,6 +374,11 @@ but it takes the gff file and fixes all the coordinates
 <h3 id="sec-3.4"><span class="section-number-3">3.4</span> and then remove the leading Ns from the sequences </h3>
 <div class="outline-text-3" id="text-3.4">
 
+<p>needs: scaffold file edited from aboce
+</p>
+<p>
+returns: scaffold file now with removed leading Ns 
+</p>
 
 
 
@@ -354,6 +396,11 @@ but it takes the gff file and fixes all the coordinates
 <h3 id="sec-3.5"><span class="section-number-3">3.5</span> convert files to NCBI-ready with my messy table scripts </h3>
 <div class="outline-text-3" id="text-3.5">
 
+<p>needs: processed gff file from previous steps, and a conversion file with the old gene names, and the new gene names that are NCBI-specific
+</p>
+<p>
+returns: NCBI tbl file with NCBI-specific identifiers for proteins
+</p>
 
 <p>
 the first script takes the gff as is, and puts the information into table formt
@@ -386,10 +433,13 @@ perl -pe 's/gene_id/protein_id/' &lt;genome_annot_from_1gff.tbl&gt; &gt; &lt;gen
 <h3 id="sec-3.6"><span class="section-number-3">3.6</span> change the gene names to ones that are permissible by NCBI. </h3>
 <div class="outline-text-3" id="text-3.6">
 
-<p>file to annotate the specific identifier assigned by NCBI. <code>newIDs.new.ncbi.txt</code>
+<p>needs: .tbl file from previous step; file to annotate the specific identifier assigned by NCBI. <code>newIDs.new.ncbi.txt</code>
 look at <i>newIDs.new.txt</i> for an example on how to do it. remember, the prefix that 
 you entered in the WGS submission will go at the beginning of your new gene IDs. In the 
 example file, I have the number followed by a dash. USE AN UNDERSCORE, NOT A DASH.
+</p>
+<p>
+returns: ncbi-formatted tbl file
 </p>
 
 
@@ -433,20 +483,32 @@ in the .tbl annotations
 </div>
 
 <div id="outline-container-4.1" class="outline-3">
-<h3 id="sec-4.1"><span class="section-number-3">4.1</span> run most recent version of tbl2asn. </h3>
+<h3 id="sec-4.1"><span class="section-number-3">4.1</span> make a .sbt file online </h3>
 <div class="outline-text-3" id="text-4.1">
 
-<p>Need to go download mac.tbl2asn or whatever it is called
-Enec.sbt came from the NCBI website creating an sbt file for me at
+<p>Enec.sbt came from the NCBI website creating an sbt file for me at
 <a href="http://www.ncbi.nlm.nih.gov/WebSub/template.cgi">http://www.ncbi.nlm.nih.gov/WebSub/template.cgi</a>
 </p>
 </div>
 
-<div id="outline-container-4.1.1" class="outline-4">
-<h4 id="sec-4.1.1"><span class="section-number-4">4.1.1</span> change things that are different, like paired-ends, organism name, isolate name, check your options, etc. </h4>
-<div class="outline-text-4" id="text-4.1.1">
+</div>
 
+<div id="outline-container-4.2" class="outline-3">
+<h3 id="sec-4.2"><span class="section-number-3">4.2</span> get tbl2asn script from NCBI </h3>
+<div class="outline-text-3" id="text-4.2">
 
+<p>Need to go download mac.tbl2asn or whatever it is called
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-4.3" class="outline-3">
+<h3 id="sec-4.3"><span class="section-number-3">4.3</span> run most recent version of tbl2asn. change things that are different, like paired-ends, organism name, isolate name, check your options, -a has to do with gap sizes, etc. </h3>
+<div class="outline-text-3" id="text-4.3">
+
+<p>this script looks for a .tbl file in your current directory
+</p>
 
 
 <pre class="example">./mac.tbl2asn -i &lt;&gt; -t Enec.sbt -M n -a r10k -j"[organism=Erysiphe necator][isolate=c]" -V v -l paired-ends
@@ -456,13 +518,12 @@ Enec.sbt came from the NCBI website creating an sbt file for me at
 
 
 </div>
-</div>
 
 </div>
 
-<div id="outline-container-4.2" class="outline-3">
-<h3 id="sec-4.2"><span class="section-number-3">4.2</span> check errorsummary.val for fatal errors </h3>
-<div class="outline-text-3" id="text-4.2">
+<div id="outline-container-4.4" class="outline-3">
+<h3 id="sec-4.4"><span class="section-number-3">4.4</span> check errorsummary.val for fatal errors </h3>
+<div class="outline-text-3" id="text-4.4">
 
 </div>
 </div>
@@ -508,7 +569,7 @@ fasta format. A new gff file will be created within the script. Bioperl is requi
 <p class="author"> Author: Katherine Amrine
 <a href="mailto:kc.amrine@gmail.com">&lt;kc.amrine@gmail.com&gt;</a>
 </p>
-<p class="date"> Date: 2015-02-03 11:14:59 PST</p>
+<p class="date"> Date: 2015-02-04 12:26:57 PST</p>
 <p class="creator">HTML generated by org-mode 6.33x in emacs 23</p>
 </div>
 </div>
