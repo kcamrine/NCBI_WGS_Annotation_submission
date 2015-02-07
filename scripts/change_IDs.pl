@@ -27,8 +27,8 @@ while(<>){ #tbl file
         $begin = $1;
         $pid = $2;
         $begin =~ s/\-/\_/;
-        if($pid< 10){ $pid = join "",$begin,"000",$pid;}elsif($pid < 100){$pid = join "",$begin,"00",$pid;}
-        elsif($pid < 1000){$pid = join "",$begin,"0",$pid;}else{$pid = join "",$begin,$pid;}
+	$pid = sprintf("%05d", $pid);
+	$pid = join "",$begin,$pid;
 	$_ =~ s/locus_tag\t(.+)$/locus_tag\t$pid/;
 	print $_;
     }
@@ -40,8 +40,8 @@ while(<>){ #tbl file
 	$begin = $1;
 	$pid = $2;
 	$begin =~ s/\-/\_/;
-	if($pid< 10){ $pid = join "",$begin,"000",$pid;}elsif($pid < 100){$pid = join "",$begin,"00",$pid;}
-	elsif($pid < 1000){$pid = join "",$begin,"0",$pid;}else{$pid = join "",$begin,$pid;}
+	$pid = sprintf("%05d", $pid);
+	$pid = join "",$begin,$pid;
 	$_ =~ s/transcript_id\t(.+)$/transcript_id\tgnl\|ncbi\|$pid/;
         print $_;
     }
@@ -53,8 +53,8 @@ while(<>){ #tbl file
         $begin = $1;
         $pid = $2;
         $begin =~ s/\-/\_/;
-        if($pid< 10){ $pid = join "",$begin,"000",$pid;}elsif($pid < 100){$pid = join "",$begin,"00",$pid;}
-        elsif($pid < 1000){$pid = join "",$begin,"0",$pid;}else{$pid = join "",$begin,$pid;}
+        $pid = sprintf("%05d", $pid);
+	$pid = join "",$begin,$pid;
 	$_ =~ s/protein_id\t(.+)$/protein_id\tgnl\|ncbi\|$pid/;
 	print $_;
     }
