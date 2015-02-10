@@ -34,7 +34,7 @@ if you don't want one automatically assigned. When you get down to the
     use this type of file. The GFF file gene names should match your 
     gene names in your fasta file.
 
- -install of BIOPERL and [[https://github.com/tlawrence3/FAST][FASTools]]
+ -install of BIOPERL and [[http://search.cpan.org/~dhard/FAST-1.0/][FASTools]]
 
 *** WHAT I GIVE YOU
 **** a crappy script to do the first conversion of the gff file to the tbl
