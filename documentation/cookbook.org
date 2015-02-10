@@ -88,7 +88,7 @@ needs: scaffold file from previous step
 
 returns: text file with list of sequences that have trailing N's, and their number
 #+BEGIN_SRC shell
-fasgrep -s "^N" <scaffolds_no_trailing.fas> | perl -ne 'BEGIN{$start=0;}if(/^\>/){$finish=0;chomp;$seqname=$_;$start=1;$length=0;}if($start==1 && $finish==0){/(^N{1,})/;$length += length($1);if(/[ATCG]/){ print join"",$seqname,"\t",$length,"\n";$start=0;$finish=1;}}' | sort | uniq > leading_Ns.txt
+fasgrep -s "^N" <scaffolds_no_trailing.fas> | perl -ne 'BEGIN{$start=0;}if(/^\>/){$finish=0;chomp;$seqname=$_;$start=1;$length=0;}elsif($start==1 && $finish==0){/(^N{1,})/;$length += length($1);if(/[ATCG]/){ print join"",$seqname,"\t",$length,"\n";$start=0;$finish=1;}}' | sort | uniq > leading_Ns.txt
 #+END_SRC
 ** change coordinates for leading N sequences in gff file
 needs: file specifying leading N's
